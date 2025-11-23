@@ -9,6 +9,8 @@ use App\Models\Book;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Spatie\QueryBuilder\QueryBuilder;
+use Spatie\QueryBuilder\AllowedFilter;
 
 class BookController extends ApiController
 {
@@ -17,36 +19,16 @@ class BookController extends ApiController
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $query = Book::with('category');
-
-        // Filter by category
-        if ($request->has('category_id')) {
-            $query->where('category_id', $request->category_id);
-        }
-
-        // Filter by availability
-        if ($request->has('available') && $request->available) {
-            $query->where('available_copies', '>', 0);
-        }
-
-        // Search by title, author, or ISBN
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                    ->orWhere('author', 'like', "%{$search}%")
-                    ->orWhere('isbn', 'like', "%{$search}%");
-            });
-        }
-
-        // Sort
-        $sortBy = $request->get('sort_by', 'title');
-        $sortOrder = $request->get('sort_order', 'asc');
-        $query->orderBy($sortBy, $sortOrder);
-
-        // Paginate
-        $perPage = $request->get('per_page', 15);
-        $books = $query->paginate($perPage);
+        $books = QueryBuilder::for(Book::class)
+            ->allowedIncludes(['category'])
+            ->allowedFilters([
+                'category_id',
+                AllowedFilter::scope('available'),
+                AllowedFilter::scope('search'),
+            ])
+            ->defaultSort('title')
+            ->allowedSorts(['title', 'author', 'created_at'])
+            ->paginate($request->get('per_page', 15));
 
         return BookResource::collection($books);
     }
@@ -98,20 +80,15 @@ class BookController extends ApiController
      */
     public function destroy(Book $book): JsonResponse
     {
-        // Check if book has active borrows
-        if ($book->borrows()->active()->count() > 0) {
+        if ($book->hasActiveBorrows()) {
             return $this->errorResponse(
-                'Cannot delete book with active borrows. Please wait until all copies are returned.',
+                'Cannot delete book with active borrows. Please wait until returned.',
                 400
             );
         }
 
         $book->delete();
 
-        return $this->successResponse(
-            null,
-            'Book deleted successfully'
-        );
+        return $this->successResponse(null, 'Book deleted successfully');
     }
 }
-

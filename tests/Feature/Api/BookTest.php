@@ -66,7 +66,7 @@ class BookTest extends TestCase
         $response = $this->withHeaders([
             'Authorization' => 'Bearer ' . $this->token,
             'Accept' => 'application/json',
-        ])->getJson('/api/books?category_id=' . $category1->id);
+        ])->getJson('/api/books?filter[category_id]=' . $category1->id);
 
         $response->assertStatus(200);
         $this->assertCount(2, $response->json('data'));
@@ -87,7 +87,7 @@ class BookTest extends TestCase
         $response = $this->withHeaders([
             'Authorization' => 'Bearer ' . $this->token,
             'Accept' => 'application/json',
-        ])->getJson('/api/books?search=Laravel');
+        ])->getJson('/api/books?filter[search]=Laravel');
 
         $response->assertStatus(200);
         $this->assertCount(1, $response->json('data'));
@@ -264,7 +264,7 @@ class BookTest extends TestCase
         $response->assertStatus(400)
             ->assertJson([
                 'success' => false,
-                'message' => 'Cannot delete book with active borrows. Please wait until all copies are returned.',
+                'message' => 'Cannot delete book with active borrows. Please wait until returned.',
             ]);
 
         // Book should still exist

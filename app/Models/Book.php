@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,11 +12,6 @@ class Book extends Model
 {
     use HasFactory;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'category_id',
         'title',
@@ -28,11 +24,6 @@ class Book extends Model
         'publisher',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -42,43 +33,62 @@ class Book extends Model
         ];
     }
 
-    /**
-     * Get the category that owns the book.
-     */
+    /* -------------------------------------------------------------------------- */
+    /* Relationships                               */
+    /* -------------------------------------------------------------------------- */
+
     public function category(): BelongsTo
     {
         return $this->belongsTo(BookCategory::class, 'category_id');
     }
 
-    /**
-     * Get the borrows for the book.
-     */
     public function borrows(): HasMany
     {
         return $this->hasMany(BookBorrow::class, 'book_id');
     }
 
-    /**
-     * Check if the book is available for borrowing.
-     */
+    /* -------------------------------------------------------------------------- */
+    /* Helpers                                   */
+    /* -------------------------------------------------------------------------- */
+
+    public function hasActiveBorrows(): bool
+    {
+        return $this->borrows()->active()->exists();
+    }
+
     public function isAvailable(): bool
     {
         return $this->available_copies > 0;
     }
 
-    /**
-     * Decrease available copies when borrowed.
-     */
     public function decrementAvailableCopies(): void
     {
         $this->decrement('available_copies');
     }
 
-    /**
-     * Increase available copies when returned.
-     */
     public function incrementAvailableCopies(): void
     {
         $this->increment('available_copies');
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /* Scopes                                   */
+    /* -------------------------------------------------------------------------- */
+
+    public function scopeSearch(Builder $query, $search): Builder
+    {
+        return $query->where(function ($q) use ($search) {
+            $q->where('title', 'like', "%{$search}%")
+              ->orWhere('author', 'like', "%{$search}%")
+              ->orWhere('isbn', 'like', "%{$search}%");
+        });
+    }
+
+    public function scopeAvailable(Builder $query, $isActive): Builder
+    {
+        if ($isActive) {
+            return $query->where('available_copies', '>', 0);
+        }
+        return $query;
     }
 }
